@@ -152,7 +152,7 @@ def create_results_zip(files: Dict[str, str | bytes], output_path: str | Path) -
     normalized = []
     seen = set()
     for name, content in files.items():
-        safe_name = Path(str(name).replace("\\\\", "/")).name
+        safe_name = Path(str(name).replace("\\", "/")).name
         if safe_name in ("", ".", ".."):
             raise ValueError(f"Invalid result filename: {name!r}")
         if safe_name in seen:
