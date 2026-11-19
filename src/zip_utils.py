@@ -149,20 +149,23 @@ def extract_supported_files(
 def create_results_zip(files: Dict[str, str | bytes], output_path: str | Path) -> Path:
     """Create a ZIP containing result files using safe flat filenames."""
     output_path = Path(output_path)
+    normalized = []
+    seen = set()
+    for name, content in files.items():
+        safe_name = Path(str(name).replace("\\\\", "/")).name
+        if safe_name in ("", ".", ".."):
+            raise ValueError(f"Invalid result filename: {name!r}")
+        if safe_name in seen:
+            raise ValueError(f"Duplicate result filename after flattening: {safe_name}")
+        if not isinstance(content, (str, bytes)):
+            raise TypeError(f"Result content for {safe_name!r} must be str or bytes")
+        seen.add(safe_name)
+        normalized.append((safe_name, content))
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(output_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-        for name, content in files.items():
-            safe_name = Path(str(name).replace("\\", "/")).name
-            if safe_name in ("", ".", ".."):
-                raise ValueError(f"Invalid result filename: {name!r}")
-            if isinstance(content, str):
-                zf.writestr(safe_name, content.encode("utf-8"))
-            elif isinstance(content, bytes):
-                zf.writestr(safe_name, content)
-            else:
-                raise TypeError(f"Result content for {safe_name!r} must be str or bytes")
+        for safe_name, content in normalized:
+            zf.writestr(safe_name, content.encode("utf-8") if isinstance(content, str) else content)
     return output_path
-
 
 def cleanup_dir(path: str | Path) -> None:
     """Remove a temporary directory tree."""
