@@ -2,8 +2,6 @@
 import tempfile
 from pathlib import Path
 
-import gradio as gr
-
 from . import llm
 from .pdf_utils import extract_text_from_pdf
 from .rag import build_context
@@ -34,6 +32,7 @@ def process_upload(file_obj, question: str, model_path: str,
 
         results = {}
         extract_dir = None
+        output_path = None
         try:
             if suffix == ".pdf":
                 document = extract_text_from_pdf(path)
@@ -69,6 +68,13 @@ def process_upload(file_obj, question: str, model_path: str,
                 output_path = Path(handle.name)
             create_results_zip(results, output_path)
             return answer, str(output_path)
+        except Exception:
+            if output_path is not None:
+                try:
+                    output_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
+            raise
         finally:
             if extract_dir:
                 cleanup_dir(extract_dir)
