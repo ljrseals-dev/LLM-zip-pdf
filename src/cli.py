@@ -33,6 +33,7 @@ def cmd_process_pdf(args: argparse.Namespace) -> None:
 
     if args.extract_only:
         out = Path(args.output) if args.output else Path(args.pdf).with_suffix(".txt")
+        out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(text, encoding="utf-8")
         print(f"Saved raw text to {out}")
         return
