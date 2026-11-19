@@ -4,13 +4,13 @@ A lightweight, offline-capable package for running a **standalone language model
 
 - **PDF upload** and text extraction / RAG-style Q&A
 - **ZIP upload** (extract, process contained documents, or treat as archive of context)
-- **ZIP download** of results (summaries, extracted text, chat logs, generated files)
+- **ZIP download** of extracted document text, questions, and generated answers
 
 Designed to work on:
 - Desktop Linux / macOS / Windows (via Python)
 - **Android Termux** (CPU inference, small models recommended)
 
-No cloud, no API keys required after model download. Privacy-first.
+No cloud or API keys are required after model download. The application binds its web UI to localhost by default; keep model files and generated archives in trusted local storage.
 
 ## Features
 
@@ -18,7 +18,7 @@ No cloud, no API keys required after model download. Privacy-first.
 |---------|-------------|
 | PDF handling | Extract text from PDFs (text-based; OCR optional via Tesseract) |
 | ZIP handling | Upload ZIP → list/extract contents → process PDFs/TXT/MD inside → re-package results as ZIP |
-| Local inference | Uses `llama-cpp-python` (GGUF models) or optional Ollama backend |
+| Local inference | Uses `llama-cpp-python` with local GGUF models |
 | CLI + simple web UI | Command-line for scripting; Gradio UI for interactive use |
 | Offline after setup | Once models and deps are installed, runs fully offline |
 | Termux friendly | Minimal deps, small model recommendations, wake-lock notes |
@@ -127,11 +127,11 @@ See `docs/termux.md` for detailed setup and performance tips.
 
 ## Security and resource limits
 
-ZIP extraction rejects path traversal and symbolic-link entries, preserves directory paths to avoid basename collisions, and enforces limits of 50 supported files, 25 MiB per file, 100 MiB total uncompressed data, and a 200:1 compression ratio. Extraction failures are reported rather than silently continuing. Uploaded documents are processed locally; treat document contents as untrusted input and review generated answers.
+ZIP extraction rejects path traversal, symbolic links and other non-regular entries, refuses encrypted members, preserves directory paths to avoid basename collisions, and enforces limits of 10,000 archive entries, 50 supported files, 25 MiB per file, 100 MiB total uncompressed data, and a 200:1 compression ratio. Extraction also refuses to write through symlinks already present in the destination directory. Extraction failures are reported rather than silently continuing. Uploaded documents are processed locally; treat document contents as untrusted input and review generated answers.
 
 ## Limitations
 
-- Scanned/image-only PDFs need OCR (optional Tesseract dependency).
+- Scanned/image-only PDFs need a separately implemented OCR pipeline; installing Tesseract alone does not enable OCR in this application.
 - Very large ZIPs or multi-GB PDFs may hit memory limits on mobile.
 - No multi-modal vision models in the base package (text-focused).
 - Inference quality depends entirely on the chosen GGUF model.
