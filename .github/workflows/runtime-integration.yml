@@ -3,7 +3,6 @@ on:
   push:
     branches:
       - "repair/document-pipeline-hardening"
-      - "repair/runtime-integration-ci"
     paths:
       - ".github/workflows/runtime-integration.yml"
       - "scripts/runtime_smoke.py"
