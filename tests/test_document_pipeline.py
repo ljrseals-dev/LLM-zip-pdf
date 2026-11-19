@@ -6,7 +6,7 @@ from pathlib import Path
 
 from src import llm
 from src.rag import build_context, chunk_text, simple_retrieve
-from src.zip_utils import extract_supported_files, list_zip_contents
+from src.zip_utils import create_results_zip, extract_supported_files, list_zip_contents
 
 
 class ZipExtractionTests(unittest.TestCase):
@@ -79,6 +79,12 @@ class ZipExtractionTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             list_zip_contents(self.archive, max_entries=1)
 
+    def test_rejects_flattened_result_filename_collision(self):
+        output = self.root / "results.zip"
+        with self.assertRaises(ValueError):
+            create_results_zip({"one/result.txt": "one", "two/result.txt": "two"}, output)
+        self.assertFalse(output.exists())
+
 
 class RetrievalTests(unittest.TestCase):
     def test_long_paragraph_chunks_are_bounded_and_overlap_validated(self):
@@ -96,6 +102,12 @@ class RetrievalTests(unittest.TestCase):
     def test_context_obeys_character_limit(self):
         result = build_context("topic", "topic " * 1000, max_context_chars=120)
         self.assertLessEqual(len(result), 120)
+
+    def test_rejects_noninteger_chunk_and_context_limits(self):
+        with self.assertRaises(TypeError):
+            chunk_text("text", chunk_size=2.5)
+        with self.assertRaises(TypeError):
+            build_context("query", "text", max_context_chars=2.5)
 
 
 class InferenceValidationTests(unittest.TestCase):
