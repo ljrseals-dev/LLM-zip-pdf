@@ -17,11 +17,10 @@ Running the standalone LLM package on Android via Termux.
 pkg update && pkg upgrade -y
 pkg install python git clang cmake wget libandroid-spawn -y
 
-
 cd ~
-# Unzip the package or clone
-# unzip standalone-llm-docs.zip
-cd standalone-llm-docs
+git clone https://github.com/ljrseals-dev/LLM-zip-pdf.git
+cd LLM-zip-pdf
+mkdir -p ~/models
 
 python -m venv .venv
 source .venv/bin/activate
@@ -79,4 +78,6 @@ python -m src.app
 - **Build failures for llama-cpp-python**: Search Termux GitHub issues or community scripts for prebuilt binaries / specific CMAKE flags.
 - **Permission denied on files**: Ensure `termux-setup-storage` was run and the file is under accessible paths.
 
-Scanned/image-only PDF OCR is not implemented; Tesseract installation alone will not add OCR support.\n\nHappy offline document chatting on your phone!
+Scanned/image-only PDF OCR is not implemented; Tesseract installation alone will not add OCR support.
+
+Happy offline document chatting on your phone!

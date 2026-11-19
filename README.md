@@ -70,8 +70,9 @@ mkdir -p models
 
 ```bash
 python -m src.cli chat --model models/your-model.gguf
-python -m src.cli process-pdf document.pdf --question "Summarize the key points"
+python -m src.cli process-pdf document.pdf --model models/your-model.gguf --question "Summarize the key points"
 python -m src.cli process-zip archive.zip --output results.zip
+python -m src.cli process-zip archive.zip --model models/your-model.gguf --summarize
 ```
 
 **Web UI (Gradio):**
@@ -89,7 +90,7 @@ In the UI:
 ## Project Structure
 
 ```
-standalone-llm-docs/
+LLM-zip-pdf/
 ├── README.md
 ├── requirements.txt
 ├── LICENSE
@@ -118,10 +119,10 @@ standalone-llm-docs/
 
 See `docs/termux.md` for detailed setup and performance tips.
 
-## Supported File Types (inside ZIP or direct)
+## Supported File Types
 
-- `.pdf` (text extraction)
-- `.txt`, `.md`, `.csv`, `.json`, `.py`, `.html` (read as UTF-8 text)
+- Direct upload: `.pdf` (text extraction).
+- ZIP members: `.pdf`, `.txt`, `.md`, `.csv`, `.json`, `.py`, and `.html` (read as UTF-8 text; source files are never executed).
 - Nested ZIPs are listed but not recursively extracted (not supported yet)
 
 ## Security and resource limits

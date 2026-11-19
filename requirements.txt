@@ -1,15 +1,4 @@
-# Core
+# Runtime dependencies
 llama-cpp-python>=0.2.90
 pypdf>=4.0.0
 gradio>=4.44.0
-
-# Optional but recommended
-# For better PDF text extraction / tables:
-# pdfplumber>=0.11.0
-
-# For OCR on scanned PDFs (Termux: pkg install tesseract):
-# pytesseract>=0.3.10
-# pdf2image>=1.17.0   # also needs poppler
-
-# Optional Ollama backend (if preferred over llama-cpp-python):
-# ollama>=0.3.0
