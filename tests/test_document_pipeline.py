@@ -98,10 +98,6 @@ class RetrievalTests(unittest.TestCase):
         self.assertLessEqual(len(result), 120)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class InferenceValidationTests(unittest.TestCase):
     def setUp(self):
         self.previous_model = llm._llm
@@ -123,3 +119,7 @@ class InferenceValidationTests(unittest.TestCase):
     def test_rejects_invalid_stop_sequence(self):
         with self.assertRaises(ValueError):
             llm.generate("hello", stop="STOP")
+
+
+if __name__ == "__main__":
+    unittest.main()
