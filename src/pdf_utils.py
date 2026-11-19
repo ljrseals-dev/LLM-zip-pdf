@@ -22,8 +22,8 @@ def _reader(path: str | Path):
 
 def extract_text_from_pdf(path: str | Path, max_pages: Optional[int] = None) -> str:
     """Extract text, retaining page markers and reporting per-page extraction errors."""
-    if max_pages is not None and max_pages < 1:
-        raise ValueError("max_pages must be at least 1")
+    if max_pages is not None and (not isinstance(max_pages, int) or isinstance(max_pages, bool) or max_pages < 1):
+        raise ValueError("max_pages must be a positive integer")
     reader = _reader(path)
     pages = reader.pages if max_pages is None else reader.pages[:max_pages]
     texts: List[str] = []
