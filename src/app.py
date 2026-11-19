@@ -46,6 +46,8 @@ def process_upload(file_obj, question: str, model_path: str,
                 )
                 extract_dir = Path(tempfile.mkdtemp(prefix="llm_upload_"))
                 extracted_files = extract_supported_files(path, dest_dir=extract_dir)
+                if not extracted_files:
+                    return "ZIP contains no supported document files.", None
                 parts = []
                 for file_path in extracted_files:
                     if file_path.suffix.lower() == ".pdf":

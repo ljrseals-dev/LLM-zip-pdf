@@ -16,8 +16,8 @@ No cloud or API keys are required after model download. The application binds it
 
 | Feature | Description |
 |---------|-------------|
-| PDF handling | Extract text from PDFs (text-based; OCR optional via Tesseract) |
-| ZIP handling | Upload ZIP → list/extract contents → process PDFs/TXT/MD inside → re-package results as ZIP |
+| PDF handling | Extract text from text-based PDFs; scanned-image OCR is not implemented |
+| ZIP handling | Upload ZIP → list/extract supported PDF, TXT, MD, CSV, JSON, PY, and HTML files → re-package results as ZIP |
 | Local inference | Uses `llama-cpp-python` with local GGUF models |
 | CLI + simple web UI | Command-line for scripting; Gradio UI for interactive use |
 | Offline after setup | Once models and deps are installed, runs fully offline |
@@ -47,7 +47,6 @@ pip install -r requirements.txt
 pkg update && pkg upgrade
 pkg install python git clang cmake libandroid-spawn
 pip install -r requirements.txt
-# Optional: pkg install tesseract  (for scanned PDF OCR)
 ```
 
 ### 4. Get a Model (GGUF)
@@ -122,7 +121,7 @@ See `docs/termux.md` for detailed setup and performance tips.
 ## Supported File Types (inside ZIP or direct)
 
 - `.pdf` (text extraction)
-- `.txt`, `.md`, `.csv` (plain text)
+- `.txt`, `.md`, `.csv`, `.json`, `.py`, `.html` (read as UTF-8 text)
 - Nested ZIPs are listed but not recursively extracted (not supported yet)
 
 ## Security and resource limits

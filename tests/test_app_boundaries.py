@@ -57,6 +57,20 @@ class AppBoundaryTests(unittest.TestCase):
                              {"extracted_text.txt", "answer.txt", "question.txt"})
             self.assertEqual(archive.read("answer.txt"), b"answer")
 
+    def test_zip_with_no_supported_files_returns_clear_message_and_cleans_temp_dir(self):
+        archive_path = self.root / "unsupported.zip"
+        with zipfile.ZipFile(archive_path, "w") as archive:
+            archive.writestr("notes.bin", b"binary")
+        with patch.object(llm, "is_loaded", return_value=True), \
+             patch.object(llm, "loaded_model_path", return_value=str(self.model.resolve())), \
+             patch.object(self.app, "extract_supported_files", return_value=[]), \
+             patch.object(self.app, "cleanup_dir", wraps=self.app.cleanup_dir) as cleanup:
+            answer, result_path = self.app.process_upload(str(archive_path), "question",
+                                                          str(self.model), 128, 0.2)
+        self.assertEqual(answer, "ZIP contains no supported document files.")
+        self.assertIsNone(result_path)
+        cleanup.assert_called_once()
+
     def test_failed_inference_removes_partial_result_and_cleans_extraction(self):
         archive_path = self.root / "input.zip"
         with zipfile.ZipFile(archive_path, "w") as archive:

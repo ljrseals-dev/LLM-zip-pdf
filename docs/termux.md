@@ -17,8 +17,6 @@ Running the standalone LLM package on Android via Termux.
 pkg update && pkg upgrade -y
 pkg install python git clang cmake wget libandroid-spawn -y
 
-# Optional OCR support for scanned PDFs
-# pkg install tesseract poppler -y
 
 cd ~
 # Unzip the package or clone
@@ -81,4 +79,4 @@ python -m src.app
 - **Build failures for llama-cpp-python**: Search Termux GitHub issues or community scripts for prebuilt binaries / specific CMAKE flags.
 - **Permission denied on files**: Ensure `termux-setup-storage` was run and the file is under accessible paths.
 
-Happy offline document chatting on your phone!
+Scanned/image-only PDF OCR is not implemented; Tesseract installation alone will not add OCR support.\n\nHappy offline document chatting on your phone!
