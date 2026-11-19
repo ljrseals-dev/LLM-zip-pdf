@@ -4,24 +4,31 @@ A lightweight, offline-capable package for running a **standalone language model
 
 - **PDF upload** and text extraction / RAG-style Q&A
 - **ZIP upload** (extract, process contained documents, or treat as archive of context)
-- **ZIP download** of results (summaries, extracted text, chat logs, generated files)
+- **ZIP download** of extracted document text, questions, and generated answers
 
 Designed to work on:
 - Desktop Linux / macOS / Windows (via Python)
 - **Android Termux** (CPU inference, small models recommended)
 
-No cloud, no API keys required after model download. Privacy-first.
+No cloud or API keys are required after model download. The application binds its web UI to localhost by default; keep model files and generated archives in trusted local storage.
 
 ## Features
 
 | Feature | Description |
 |---------|-------------|
-| PDF handling | Extract text from PDFs (text-based; OCR optional via Tesseract) |
-| ZIP handling | Upload ZIP → list/extract contents → process PDFs/TXT/MD inside → re-package results as ZIP |
-| Local inference | Uses `llama-cpp-python` (GGUF models) or optional Ollama backend |
+| PDF handling | Extract text from text-based PDFs; scanned-image OCR is not implemented |
+| ZIP handling | Upload ZIP → list/extract supported PDF, TXT, MD, CSV, JSON, PY, and HTML files → re-package results as ZIP |
+| Local inference | Uses `llama-cpp-python` with local GGUF models |
+| Behavioral prompt profile | Includes the authored Shadowy Spooky Poltergeist system-prompt profile by default; callers may override it |
 | CLI + simple web UI | Command-line for scripting; Gradio UI for interactive use |
 | Offline after setup | Once models and deps are installed, runs fully offline |
-| Termux friendly | Minimal deps, small model recommendations, wake-lock notes |
+| Termux friendly | Minimal deps, small models recommended, wake-lock notes |
+
+## Model and prompt profile
+
+The repository `ljrseals-dev/shadowy-spooky-poltergeist` supplies a behavioral specification/system prompt, not trained weights or a runnable neural-network checkpoint. This project uses a carefully adapted profile from its behavioral directives at `prompts/shadowy-spooky-poltergeist.system.txt`.
+
+The profile is applied as the default system message by the local inference wrapper. A caller can provide an explicit `system=` value to `src.llm.generate()` to override it. The profile does not change model weights, architecture, context capacity, modalities, or actual capabilities. Those remain properties of the selected GGUF checkpoint and runtime. In particular, the large architecture figures in the source specification are not asserted as facts about the smaller checkpoint used in CI.
 
 ## Quick Start
 
@@ -34,10 +41,10 @@ No cloud, no API keys required after model download. Privacy-first.
 ### 2. Install (Desktop)
 
 ```bash
-git clone <this-repo-or-unzip>
-cd standalone-llm-docs
+git clone https://github.com/ljrseals-dev/LLM-zip-pdf.git
+cd LLM-zip-pdf
 python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
+source .venv/bin/activate   # Windows: .venv\\Scripts\\activate
 pip install -r requirements.txt
 ```
 
@@ -47,7 +54,6 @@ pip install -r requirements.txt
 pkg update && pkg upgrade
 pkg install python git clang cmake libandroid-spawn
 pip install -r requirements.txt
-# Optional: pkg install tesseract  (for scanned PDF OCR)
 ```
 
 ### 4. Get a Model (GGUF)
@@ -71,8 +77,9 @@ mkdir -p models
 
 ```bash
 python -m src.cli chat --model models/your-model.gguf
-python -m src.cli process-pdf document.pdf --question "Summarize the key points"
+python -m src.cli process-pdf document.pdf --model models/your-model.gguf --question "Summarize the key points"
 python -m src.cli process-zip archive.zip --output results.zip
+python -m src.cli process-zip archive.zip --model models/your-model.gguf --summarize
 ```
 
 **Web UI (Gradio):**
@@ -90,10 +97,12 @@ In the UI:
 ## Project Structure
 
 ```
-standalone-llm-docs/
+LLM-zip-pdf/
 ├── README.md
 ├── requirements.txt
 ├── LICENSE
+├── prompts/
+│   └── shadowy-spooky-poltergeist.system.txt
 ├── src/
 │   ├── __init__.py
 │   ├── cli.py          # Command-line interface
@@ -119,18 +128,23 @@ standalone-llm-docs/
 
 See `docs/termux.md` for detailed setup and performance tips.
 
-## Supported File Types (inside ZIP or direct)
+## Supported File Types
 
-- `.pdf` (text extraction)
-- `.txt`, `.md`, `.csv` (plain text)
-- Nested ZIPs (limited depth)
+- Direct upload: `.pdf` (text extraction).
+- ZIP members: `.pdf`, `.txt`, `.md`, `.csv`, `.json`, `.py`, and `.html` (read as UTF-8 text; source files are never executed).
+- Nested ZIPs are listed but not recursively extracted (not supported yet)
+
+## Security and resource limits
+
+ZIP extraction rejects path traversal, symbolic links and other non-regular entries, refuses encrypted members, preserves directory paths, skips names unsafe on common filesystems, detects case-insensitive filename collisions, and enforces limits of 10,000 archive entries, 50 supported files, 25 MiB per file, 100 MiB total uncompressed data, and a 200:1 compression ratio. Extraction also refuses to write through symlinks already present in the destination directory and rolls back partial extraction. PDF extraction is limited by default to 50 MiB per file, 500 pages, and 5 million extracted text characters. RAG chunking is bounded to 10 million document characters and 100,000 chunks. Uploaded document contents are untrusted data: embedded instructions are not to be followed as model instructions. Review generated answers.
 
 ## Limitations
 
-- Scanned/image-only PDFs need OCR (optional Tesseract dependency).
-- Very large ZIPs or multi-GB PDFs may hit memory limits on mobile.
+- Scanned/image-only PDFs are not OCR-processed. Tesseract is not integrated into this application. Encrypted PDFs are rejected.
+- ZIP extraction is limited to 100 MiB total uncompressed content; larger archives are rejected. The PDF and RAG limits are configurable through their Python APIs.
 - No multi-modal vision models in the base package (text-focused).
 - Inference quality depends entirely on the chosen GGUF model.
+- CI's Qwen GGUF is a test fixture, not a replacement for a user's own model.
 
 ## License
 
@@ -142,4 +156,4 @@ Built for offline, private document workflows. Compatible with the broader llama
 
 ---
 
-**Ready to use.** Unzip, install deps, drop a GGUF model, and start chatting with your PDFs and ZIP archives offline.
+**Ready to use.** Clone the repository, install dependencies, add a GGUF model, and start chatting with your PDFs and ZIP archives offline.

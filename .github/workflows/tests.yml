@@ -1,0 +1,31 @@
+name: tests
+on:
+  push:
+    branches: [main, "repair/**"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install test dependency
+        run: python -m pip install --upgrade pip
+      - name: Install lightweight PDF test dependency
+        run: python -m pip install "pypdf>=4.0.0"
+      - name: Compile source and tests
+        run: python -m compileall -q src tests
+      - name: Run regression tests
+        run: python -m unittest discover -s tests -v

@@ -1,13 +1,47 @@
 """Command-line interface for standalone LLM + document tools."""
 
 import argparse
+import os
 import sys
+import tempfile
 from pathlib import Path
 
 from .pdf_utils import extract_text_from_pdf, get_pdf_page_count
 from .zip_utils import list_zip_contents, extract_supported_files, create_results_zip, cleanup_dir
 from .rag import build_context
 from . import llm
+
+
+def _reject_input_overwrite(source: str | Path, output: str | Path) -> None:
+    """Prevent an output path from replacing its source document/archive."""
+    if Path(source).expanduser().resolve() == Path(output).expanduser().resolve():
+        raise ValueError("Output path must be different from the input file")
+
+
+def _write_text_atomic(text: str, output: str | Path) -> Path:
+    """Write extracted text without leaving a partial or symlink-following output."""
+    target = Path(output)
+    if target.is_symlink():
+        raise ValueError("Text output path must not be a symbolic link")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    fd, temp_name = tempfile.mkstemp(
+        prefix=f".{target.name}.", suffix=".tmp", dir=str(target.parent)
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+            handle.flush()
+            os.fsync(handle.fileno())
+        if target.is_symlink():
+            raise ValueError("Text output path became a symbolic link")
+        os.replace(temp_name, target)
+    except Exception:
+        try:
+            os.unlink(temp_name)
+        except FileNotFoundError:
+            pass
+        raise
+    return target
 
 
 def cmd_chat(args: argparse.Namespace) -> None:
@@ -26,13 +60,25 @@ def cmd_chat(args: argparse.Namespace) -> None:
 
 
 def cmd_process_pdf(args: argparse.Namespace) -> None:
+    if args.output:
+        _reject_input_overwrite(args.pdf, args.output)
+        output_suffix = Path(args.output).suffix.lower()
+        if args.extract_only and output_suffix != ".txt":
+            raise ValueError("--extract-only output must use a .txt extension")
+        if not args.extract_only and output_suffix != ".zip":
+            raise ValueError("Q&A results output must use a .zip extension")
     text = extract_text_from_pdf(args.pdf, max_pages=args.max_pages)
     pages = get_pdf_page_count(args.pdf)
-    print(f"Extracted text from {pages} page(s). Length: {len(text)} chars.\n")
+    page_limit = args.max_pages if args.max_pages is not None else 500
+    extracted_pages = min(pages, page_limit)
+    print(
+        f"PDF has {pages} page(s); extracted {extracted_pages} page(s). "
+        f"Length: {len(text)} chars.\n"
+    )
 
     if args.extract_only:
         out = Path(args.output) if args.output else Path(args.pdf).with_suffix(".txt")
-        out.write_text(text, encoding="utf-8")
+        _write_text_atomic(text, out)
         print(f"Saved raw text to {out}")
         return
 
@@ -59,49 +105,58 @@ def cmd_process_pdf(args: argparse.Namespace) -> None:
 
 
 def cmd_process_zip(args: argparse.Namespace) -> None:
+    _reject_input_overwrite(args.zip, args.output or "results.zip")
+    if (args.output and Path(args.output).suffix.lower() != ".zip"):
+        raise ValueError("ZIP processing output must use a .zip extension")
+    if (args.question or args.summarize) and not args.model:
+        raise ValueError("--model is required when --question or --summarize is used")
     contents = list_zip_contents(args.zip)
     print(f"ZIP contains {len(contents)} file(s):")
-    for c in contents[:20]:
-        print(f"  - {c['name']} ({c['size']} bytes)")
+    for item in contents[:20]:
+        print(f"  - {item['name']} ({item['size']} bytes)")
     if len(contents) > 20:
         print(f"  ... and {len(contents) - 20} more")
 
-    extract_dir = extract_supported_files(args.zip)
-    print(f"\nExtracted {len(extract_dir)} supported file(s) to temporary directory.")
-
-    all_text_parts = []
-    for fpath in extract_dir:
-        if fpath.suffix.lower() == ".pdf":
+    extract_dir = None
+    try:
+        extract_dir = Path(tempfile.mkdtemp(prefix="llm_zip_cli_"))
+        extracted_files = extract_supported_files(args.zip, dest_dir=extract_dir)
+        if not extracted_files:
+            print("ZIP contains no supported document files.", file=sys.stderr)
+            return
+        print(f"\nExtracted {len(extracted_files)} supported file(s) to temporary directory.")
+        all_text_parts = []
+        for fpath in extracted_files:
             try:
-                t = extract_text_from_pdf(fpath)
-                all_text_parts.append(f"=== {fpath.name} ===\n{t}")
-            except Exception as e:
-                all_text_parts.append(f"=== {fpath.name} (error: {e}) ===")
-        else:
-            try:
-                t = fpath.read_text(encoding="utf-8", errors="replace")
-                all_text_parts.append(f"=== {fpath.name} ===\n{t}")
-            except Exception as e:
-                all_text_parts.append(f"=== {fpath.name} (error: {e}) ===")
+                if fpath.suffix.lower() == ".pdf":
+                    text = extract_text_from_pdf(fpath)
+                else:
+                    text = fpath.read_text(encoding="utf-8", errors="replace")
+                all_text_parts.append(f"=== {fpath.as_posix()} ===\n{text}")
+            except Exception as exc:
+                all_text_parts.append(
+                    f"=== {fpath.name} (error: {type(exc).__name__}: {exc}) ==="
+                )
 
-    combined = "\n\n".join(all_text_parts)
-    results = {"combined_extracted.txt": combined}
+        combined = "\n\n".join(all_text_parts)
+        results = {"combined_extracted.txt": combined}
+        if args.model and (args.question or args.summarize):
+            llm.load_model(args.model, n_ctx=args.ctx, n_threads=args.threads,
+                           n_gpu_layers=args.gpu_layers)
+            question = args.question or "Summarize the contents of these documents."
+            context = build_context(question, combined)
+            answer = llm.generate(f"Documents:\n\n{context}\n\nQuestion: {question}",
+                                  max_tokens=args.max_tokens, temperature=args.temp)
+            results["answer.txt"] = answer
+            results["question.txt"] = question
+            print("\n--- Answer ---\n")
+            print(answer)
 
-    if args.model and (args.question or args.summarize):
-        llm.load_model(args.model, n_ctx=args.ctx, n_threads=args.threads, n_gpu_layers=args.gpu_layers)
-        question = args.question or "Summarize the contents of these documents."
-        context = build_context(question, combined)
-        prompt = f"Documents:\n\n{context}\n\nQuestion: {question}"
-        answer = llm.generate(prompt, max_tokens=args.max_tokens, temperature=args.temp)
-        results["answer.txt"] = answer
-        results["question.txt"] = question
-        print("\n--- Answer ---\n")
-        print(answer)
-
-    out_zip = args.output or "results.zip"
-    zip_path = create_results_zip(results, out_zip)
-    print(f"\nResults ZIP written to {zip_path}")
-    cleanup_dir(extract_dir)
+        zip_path = create_results_zip(results, args.output or "results.zip")
+        print(f"\nResults ZIP written to {zip_path}")
+    finally:
+        if extract_dir:
+            cleanup_dir(extract_dir)
 
 
 def main() -> None:
@@ -131,7 +186,8 @@ def main() -> None:
     add_model_args(p_pdf)
     p_pdf.add_argument("pdf", type=str, help="PDF file path")
     p_pdf.add_argument("--question", "-q", type=str, default=None)
-    p_pdf.add_argument("--max-pages", type=int, default=None)
+    p_pdf.add_argument("--max-pages", type=int, default=500,
+                       help="Maximum PDF pages to extract (hard safety limit)")
     p_pdf.add_argument("--extract-only", action="store_true")
     p_pdf.add_argument("--output", "-o", type=str, default=None, help="Output ZIP or TXT path")
     p_pdf.set_defaults(func=cmd_process_pdf)
