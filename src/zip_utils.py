@@ -116,6 +116,7 @@ def extract_supported_files(
     destination = Path(tempfile.mkdtemp(prefix="llm_zip_")) if owns_destination else Path(dest_dir)
     created_files: List[Path] = []
     created_dirs: List[Path] = []
+    destination_created = not destination.exists()
     try:
         if destination.is_symlink():
             raise ValueError("ZIP destination must not be a symbolic link")
@@ -199,6 +200,11 @@ def extract_supported_files(
             for path in reversed(created_dirs):
                 try:
                     path.rmdir()
+                except OSError:
+                    pass
+            if destination_created:
+                try:
+                    destination.rmdir()
                 except OSError:
                     pass
         raise
