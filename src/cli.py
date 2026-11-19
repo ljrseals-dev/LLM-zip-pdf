@@ -61,47 +61,45 @@ def cmd_process_pdf(args: argparse.Namespace) -> None:
 def cmd_process_zip(args: argparse.Namespace) -> None:
     contents = list_zip_contents(args.zip)
     print(f"ZIP contains {len(contents)} file(s):")
-    for c in contents[:20]:
-        print(f"  - {c['name']} ({c['size']} bytes)")
+    for item in contents[:20]:
+        print(f"  - {item['name']} ({item['size']} bytes)")
     if len(contents) > 20:
         print(f"  ... and {len(contents) - 20} more")
 
-    extract_dir = extract_supported_files(args.zip)
-    print(f"\nExtracted {len(extract_dir)} supported file(s) to temporary directory.")
-
-    all_text_parts = []
-    for fpath in extract_dir:
-        if fpath.suffix.lower() == ".pdf":
+    extract_dir = None
+    try:
+        extract_dir = extract_supported_files(args.zip)
+        print(f"\nExtracted {len(extract_dir)} supported file(s) to temporary directory.")
+        all_text_parts = []
+        for fpath in extract_dir:
             try:
-                t = extract_text_from_pdf(fpath)
-                all_text_parts.append(f"=== {fpath.name} ===\n{t}")
-            except Exception as e:
-                all_text_parts.append(f"=== {fpath.name} (error: {e}) ===")
-        else:
-            try:
-                t = fpath.read_text(encoding="utf-8", errors="replace")
-                all_text_parts.append(f"=== {fpath.name} ===\n{t}")
-            except Exception as e:
-                all_text_parts.append(f"=== {fpath.name} (error: {e}) ===")
+                if fpath.suffix.lower() == ".pdf":
+                    text = extract_text_from_pdf(fpath)
+                else:
+                    text = fpath.read_text(encoding="utf-8", errors="replace")
+                all_text_parts.append(f"=== {fpath.as_posix()} ===\n{text}")
+            except Exception as exc:
+                all_text_parts.append(f"=== {fpath.name} (error: {type(exc).__name__}) ===")
 
-    combined = "\n\n".join(all_text_parts)
-    results = {"combined_extracted.txt": combined}
+        combined = "\n\n".join(all_text_parts)
+        results = {"combined_extracted.txt": combined}
+        if args.model and (args.question or args.summarize):
+            llm.load_model(args.model, n_ctx=args.ctx, n_threads=args.threads,
+                           n_gpu_layers=args.gpu_layers)
+            question = args.question or "Summarize the contents of these documents."
+            context = build_context(question, combined)
+            answer = llm.generate(f"Documents:\n\n{context}\n\nQuestion: {question}",
+                                  max_tokens=args.max_tokens, temperature=args.temp)
+            results["answer.txt"] = answer
+            results["question.txt"] = question
+            print("\n--- Answer ---\n")
+            print(answer)
 
-    if args.model and (args.question or args.summarize):
-        llm.load_model(args.model, n_ctx=args.ctx, n_threads=args.threads, n_gpu_layers=args.gpu_layers)
-        question = args.question or "Summarize the contents of these documents."
-        context = build_context(question, combined)
-        prompt = f"Documents:\n\n{context}\n\nQuestion: {question}"
-        answer = llm.generate(prompt, max_tokens=args.max_tokens, temperature=args.temp)
-        results["answer.txt"] = answer
-        results["question.txt"] = question
-        print("\n--- Answer ---\n")
-        print(answer)
-
-    out_zip = args.output or "results.zip"
-    zip_path = create_results_zip(results, out_zip)
-    print(f"\nResults ZIP written to {zip_path}")
-    cleanup_dir(extract_dir)
+        zip_path = create_results_zip(results, args.output or "results.zip")
+        print(f"\nResults ZIP written to {zip_path}")
+    finally:
+        if extract_dir:
+            cleanup_dir(extract_dir)
 
 
 def main() -> None:
