@@ -36,6 +36,8 @@ class ZipExtractionTests(unittest.TestCase):
         with zipfile.ZipFile(self.archive, "w") as archive:
             archive.writestr("../escape.txt", "bad")
             archive.writestr("/absolute.txt", "bad")
+            archive.writestr("C:drive-relative.txt", "bad")
+            archive.writestr("C:/drive-absolute.txt", "bad")
             archive.writestr("notes.bin", "ignored")
             archive.writestr("docs/good.md", "safe")
         destination = self.root / "out"
