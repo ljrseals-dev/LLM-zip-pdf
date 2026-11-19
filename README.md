@@ -34,8 +34,8 @@ No cloud, no API keys required after model download. Privacy-first.
 ### 2. Install (Desktop)
 
 ```bash
-git clone <this-repo-or-unzip>
-cd standalone-llm-docs
+git clone https://github.com/ljrseals-dev/LLM-zip-pdf.git
+cd LLM-zip-pdf
 python -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
@@ -123,7 +123,11 @@ See `docs/termux.md` for detailed setup and performance tips.
 
 - `.pdf` (text extraction)
 - `.txt`, `.md`, `.csv` (plain text)
-- Nested ZIPs (limited depth)
+- Nested ZIPs are listed but not recursively extracted (not supported yet)
+
+## Security and resource limits
+
+ZIP extraction rejects path traversal and symbolic-link entries, preserves directory paths to avoid basename collisions, and enforces limits of 50 supported files, 25 MiB per file, 100 MiB total uncompressed data, and a 200:1 compression ratio. Extraction failures are reported rather than silently continuing. Uploaded documents are processed locally; treat document contents as untrusted input and review generated answers.
 
 ## Limitations
 
@@ -142,4 +146,4 @@ Built for offline, private document workflows. Compatible with the broader llama
 
 ---
 
-**Ready to use.** Unzip, install deps, drop a GGUF model, and start chatting with your PDFs and ZIP archives offline.
+**Ready to use.** Clone the repository, install dependencies, add a GGUF model, and start chatting with your PDFs and ZIP archives offline.
