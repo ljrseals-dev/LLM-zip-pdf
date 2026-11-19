@@ -1,7 +1,7 @@
 """ZIP archive utilities for upload / download.
 
 Extraction is deliberately bounded: archives are untrusted input and may contain
-path traversal entries, duplicate basenames, symlinks, or decompression bombs.
+path traversal entries, duplicate paths, symlinks, encrypted files, or bombs.
 """
 import shutil
 import stat
@@ -15,6 +15,7 @@ DEFAULT_MAX_FILES = 50
 DEFAULT_MAX_FILE_BYTES = 25 * 1024 * 1024
 DEFAULT_MAX_TOTAL_BYTES = 100 * 1024 * 1024
 DEFAULT_MAX_RATIO = 200
+DEFAULT_MAX_ARCHIVE_ENTRIES = 10000
 
 
 def _safe_member_path(name: str) -> Optional[Path]:
@@ -28,11 +29,46 @@ def _safe_member_path(name: str) -> Optional[Path]:
     return Path(*member.parts)
 
 
-def list_zip_contents(zip_path: str | Path) -> List[Dict[str, str | int]]:
-    """List regular files in a ZIP archive without extracting them."""
+def _validate_regular_member(info: zipfile.ZipInfo) -> None:
+    """Reject encrypted and non-regular Unix entries before opening them."""
+    if info.flag_bits & 0x1:
+        raise ValueError(f"Encrypted ZIP members are not supported: {info.filename}")
+    mode = info.external_attr >> 16
+    kind = stat.S_IFMT(mode)
+    if kind not in (0, stat.S_IFREG):
+        raise ValueError(f"Non-regular ZIP member is not supported: {info.filename}")
+
+
+def _safe_destination(destination: Path, relative: Path) -> Path:
+    """Resolve a member below destination without following existing symlinks."""
+    if destination.is_symlink():
+        raise ValueError("ZIP destination must not be a symbolic link")
+    root = destination.resolve()
+    target = destination / relative
+    current = destination
+    for part in relative.parts[:-1]:
+        current = current / part
+        if current.is_symlink():
+            raise ValueError(f"ZIP destination contains a symbolic link: {current}")
+    if target.is_symlink():
+        raise ValueError(f"ZIP destination is a symbolic link: {target}")
+    resolved_parent = target.parent.resolve()
+    if resolved_parent != root and root not in resolved_parent.parents:
+        raise ValueError(f"ZIP member escapes destination: {relative}")
+    return target
+
+
+def list_zip_contents(zip_path: str | Path,
+                      max_entries: int = DEFAULT_MAX_ARCHIVE_ENTRIES) -> List[Dict[str, str | int]]:
+    """List regular files without extracting; cap metadata work for hostile archives."""
+    if max_entries < 1:
+        raise ValueError("max_entries must be positive")
     contents = []
     with zipfile.ZipFile(Path(zip_path), "r") as zf:
-        for info in zf.infolist():
+        infos = zf.infolist()
+        if len(infos) > max_entries:
+            raise ValueError(f"ZIP exceeds the {max_entries}-entry listing limit")
+        for info in infos:
             if not info.is_dir():
                 contents.append({"name": info.filename, "size": info.file_size,
                                  "compress_size": info.compress_size})
@@ -57,12 +93,17 @@ def extract_supported_files(
     zip_path = Path(zip_path)
     owns_destination = dest_dir is None
     destination = Path(tempfile.mkdtemp(prefix="llm_zip_")) if owns_destination else Path(dest_dir)
-    destination.mkdir(parents=True, exist_ok=True)
-    extracted: List[Path] = []
-    total_bytes = 0
     try:
+        if destination.is_symlink():
+            raise ValueError("ZIP destination must not be a symbolic link")
+        destination.mkdir(parents=True, exist_ok=True)
+        extracted: List[Path] = []
+        total_bytes = 0
         with zipfile.ZipFile(zip_path, "r") as zf:
-            for info in zf.infolist():
+            infos = zf.infolist()
+            if len(infos) > DEFAULT_MAX_ARCHIVE_ENTRIES:
+                raise ValueError(f"ZIP exceeds the {DEFAULT_MAX_ARCHIVE_ENTRIES}-entry limit")
+            for info in infos:
                 if info.is_dir():
                     continue
                 relative = _safe_member_path(info.filename)
@@ -70,9 +111,7 @@ def extract_supported_files(
                     continue
                 if relative.suffix.lower() not in SUPPORTED_EXTENSIONS:
                     continue
-                mode = info.external_attr >> 16
-                if stat.S_ISLNK(mode):
-                    continue
+                _validate_regular_member(info)
                 if len(extracted) >= max_files:
                     raise ValueError(f"ZIP exceeds the {max_files}-file extraction limit")
                 if info.file_size > max_file_bytes:
@@ -83,9 +122,8 @@ def extract_supported_files(
                 if info.file_size and (info.compress_size == 0 or
                     info.file_size / max(1, info.compress_size) > max_compression_ratio):
                     raise ValueError(f"Suspicious compression ratio: {info.filename}")
-                target = destination / relative
+                target = _safe_destination(destination, relative)
                 target.parent.mkdir(parents=True, exist_ok=True)
-                # Refuse collisions rather than silently overwriting earlier entries.
                 if target.exists():
                     raise ValueError(f"Duplicate ZIP destination: {info.filename}")
                 written = 0
