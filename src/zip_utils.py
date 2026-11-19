@@ -24,7 +24,7 @@ def _safe_member_path(name: str) -> Optional[Path]:
     member = PurePosixPath(normalized)
     if member.is_absolute() or not member.parts or any(p in ("", ".", "..") for p in member.parts):
         return None
-    if member.parts[0].endswith(":"):
+    if any(":" in part for part in member.parts):
         return None
     return Path(*member.parts)
 
