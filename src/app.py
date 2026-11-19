@@ -45,9 +45,9 @@ def process_upload(file_obj, question: str, model_path: str,
                     f"- {item['name']} ({item['size']} B)" for item in contents[:100]
                 )
                 extract_dir = Path(tempfile.mkdtemp(prefix="llm_upload_"))
-                extract_supported_files(path, dest_dir=extract_dir)
+                extracted_files = extract_supported_files(path, dest_dir=extract_dir)
                 parts = []
-                for file_path in extract_dir:
+                for file_path in extracted_files:
                     if file_path.suffix.lower() == ".pdf":
                         text = extract_text_from_pdf(file_path)
                     else:

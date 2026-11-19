@@ -70,10 +70,10 @@ def cmd_process_zip(args: argparse.Namespace) -> None:
     extract_dir = None
     try:
         extract_dir = Path(tempfile.mkdtemp(prefix="llm_zip_cli_"))
-        extract_supported_files(args.zip, dest_dir=extract_dir)
-        print(f"\nExtracted {len(extract_dir)} supported file(s) to temporary directory.")
+        extracted_files = extract_supported_files(args.zip, dest_dir=extract_dir)
+        print(f"\nExtracted {len(extracted_files)} supported file(s) to temporary directory.")
         all_text_parts = []
-        for fpath in extract_dir:
+        for fpath in extracted_files:
             try:
                 if fpath.suffix.lower() == ".pdf":
                     text = extract_text_from_pdf(fpath)
