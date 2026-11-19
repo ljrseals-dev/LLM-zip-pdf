@@ -53,6 +53,8 @@ def main():
     )
     if not answer.strip():
         raise AssertionError("Real GGUF inference returned an empty response")
+    if "GREEN" not in answer.upper():
+        raise AssertionError(f"Real GGUF inference did not return the requested sentinel: {answer!r}")
     print(f"Real inference returned: {answer[:160]!r}", flush=True)
     llm.unload()
 
@@ -117,6 +119,14 @@ def main():
                     raise AssertionError("Uploaded document text was not preserved in result ZIP")
                 if not saved_answer.strip():
                     raise AssertionError("Result ZIP contains an empty answer")
+                if "ORCHID" not in generated_answer.upper():
+                    raise AssertionError(
+                        f"Gradio answer did not identify the uploaded sentinel: {generated_answer!r}"
+                    )
+                if "ORCHID" not in saved_answer.upper():
+                    raise AssertionError(
+                        f"Result ZIP answer did not preserve the expected answer: {saved_answer!r}"
+                    )
 
             print("PASS: real GGUF inference succeeded.", flush=True)
             print("PASS: live Gradio server launched and accepted a ZIP upload.", flush=True)

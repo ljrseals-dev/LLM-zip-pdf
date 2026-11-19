@@ -1,7 +1,16 @@
 name: runtime-integration
 on:
   push:
-    branches: ["repair/document-pipeline-hardening"]
+    branches:
+      - "repair/document-pipeline-hardening"
+    paths:
+      - ".github/workflows/runtime-integration.yml"
+      - "scripts/runtime_smoke.py"
+      - "src/**"
+      - "prompts/**"
+      - "requirements.txt"
+  pull_request:
+    branches: [main]
     paths:
       - ".github/workflows/runtime-integration.yml"
       - "scripts/runtime_smoke.py"
