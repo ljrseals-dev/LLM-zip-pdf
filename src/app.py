@@ -44,7 +44,8 @@ def process_upload(file_obj, question: str, model_path: str,
                 results["zip_listing.txt"] = "\n".join(
                     f"- {item['name']} ({item['size']} B)" for item in contents[:100]
                 )
-                extract_dir = extract_supported_files(path)
+                extract_dir = Path(tempfile.mkdtemp(prefix="llm_upload_"))
+                extract_supported_files(path, dest_dir=extract_dir)
                 parts = []
                 for file_path in extract_dir:
                     if file_path.suffix.lower() == ".pdf":

@@ -2,6 +2,7 @@
 
 import argparse
 import sys
+import tempfile
 from pathlib import Path
 
 from .pdf_utils import extract_text_from_pdf, get_pdf_page_count
@@ -68,7 +69,8 @@ def cmd_process_zip(args: argparse.Namespace) -> None:
 
     extract_dir = None
     try:
-        extract_dir = extract_supported_files(args.zip)
+        extract_dir = Path(tempfile.mkdtemp(prefix="llm_zip_cli_"))
+        extract_supported_files(args.zip, dest_dir=extract_dir)
         print(f"\nExtracted {len(extract_dir)} supported file(s) to temporary directory.")
         all_text_parts = []
         for fpath in extract_dir:
