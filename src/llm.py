@@ -37,6 +37,11 @@ def is_loaded() -> bool:
     return _llm is not None
 
 
+def loaded_model_path() -> Optional[str]:
+    """Return the resolved path for the currently loaded model, if any."""
+    return _model_path
+
+
 def generate(prompt: str, system: str = "You are a helpful assistant that answers questions about documents.",
              max_tokens: int = 512, temperature: float = 0.7,
              stop: Optional[List[str]] = None) -> str:
