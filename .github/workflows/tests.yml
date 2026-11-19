@@ -25,5 +25,7 @@ jobs:
         run: python -m pip install --upgrade pip
       - name: Install lightweight PDF test dependency
         run: python -m pip install "pypdf>=4.0.0"
+      - name: Compile source and tests
+        run: python -m compileall -q src tests
       - name: Run regression tests
         run: python -m unittest discover -s tests -v

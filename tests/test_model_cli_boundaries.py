@@ -15,10 +15,28 @@ class ModelBoundaryTests(unittest.TestCase):
     def setUp(self):
         self.previous_model = llm._llm
         self.previous_path = llm._model_path
+        self.previous_config = llm._model_config
 
     def tearDown(self):
         llm._llm = self.previous_model
         llm._model_path = self.previous_path
+        llm._model_config = self.previous_config
+
+    def test_loaded_model_config_tracks_settings_without_exposing_mutable_state(self):
+        with tempfile.TemporaryDirectory() as temp:
+            model_path = Path(temp) / "model.gguf"
+            model_path.write_bytes(b"placeholder")
+            class FakeLlama:
+                def __init__(self, **kwargs):
+                    self.kwargs = kwargs
+            with patch.dict(sys.modules, {"llama_cpp": types.SimpleNamespace(Llama=FakeLlama)}):
+                llm.load_model(model_path, n_ctx=2048, n_threads=2, n_gpu_layers=1, verbose=True)
+            config = llm.loaded_model_config()
+            self.assertEqual(config["n_ctx"], 2048)
+            self.assertEqual(config["n_threads"], 2)
+            self.assertEqual(config["effective_n_threads"], 2)
+            config["n_ctx"] = 1
+            self.assertEqual(llm.loaded_model_config()["n_ctx"], 2048)
 
     def test_chat_api_failure_is_not_silently_retried_as_completion(self):
         class ChatModel:
@@ -51,6 +69,9 @@ class ModelBoundaryTests(unittest.TestCase):
             existing = object()
             llm._llm = existing
             llm._model_path = "previous-model"
+            llm._model_config = {"n_ctx": 1024, "n_threads": 1, "effective_n_threads": 1,
+                                 "n_gpu_layers": 0, "verbose": False}
+            previous_config = llm.loaded_model_config()
             class BrokenLlama:
                 def __init__(self, **kwargs):
                     raise RuntimeError("backend construction failed")
@@ -60,6 +81,7 @@ class ModelBoundaryTests(unittest.TestCase):
                     llm.load_model(model_path)
             self.assertIs(llm._llm, existing)
             self.assertEqual(llm._model_path, "previous-model")
+            self.assertEqual(llm.loaded_model_config(), previous_config)
 
 
 class CliFailurePathTests(unittest.TestCase):

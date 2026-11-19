@@ -81,11 +81,32 @@ class ZipExtractionTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             list_zip_contents(self.archive, max_entries=1)
 
+    def test_rejects_case_colliding_archive_destinations(self):
+        with zipfile.ZipFile(self.archive, "w") as archive:
+            archive.writestr("A.txt", "upper")
+            archive.writestr("a.txt", "lower")
+        with self.assertRaisesRegex(ValueError, "case-colliding"):
+            extract_supported_files(self.archive)
+
+    def test_skips_nonportable_windows_member_names(self):
+        with zipfile.ZipFile(self.archive, "w") as archive:
+            archive.writestr("CON.txt", "device")
+            archive.writestr("trailing./bad.txt", "bad")
+            archive.writestr("docs/good.txt", "safe")
+        extracted = extract_supported_files(self.archive, self.root / "portable")
+        self.assertEqual([item.name for item in extracted], ["good.txt"])
+
     def test_rejects_flattened_result_filename_collision(self):
         output = self.root / "results.zip"
-        with self.assertRaises(ValueError):
-            create_results_zip({"one/result.txt": "one", "two/result.txt": "two"}, output)
-        self.assertFalse(output.exists())
+        invalid_sets = (
+            {"one/result.txt": "one", "two/result.txt": "two"},
+            {"A.txt": "upper", "a.txt": "lower"},
+            {"CON.txt": "reserved"},
+        )
+        for files in invalid_sets:
+            with self.subTest(files=list(files)), self.assertRaises(ValueError):
+                create_results_zip(files, output)
+            self.assertFalse(output.exists())
 
 
 class RetrievalTests(unittest.TestCase):

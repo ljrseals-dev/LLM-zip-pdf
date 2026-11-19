@@ -45,6 +45,7 @@ class AppBoundaryTests(unittest.TestCase):
     def test_successful_pdf_upload_returns_readable_unique_result_archives(self):
         with patch.object(llm, "is_loaded", return_value=True), \
              patch.object(llm, "loaded_model_path", return_value=str(self.model.resolve())), \
+             patch.object(llm, "loaded_model_config", return_value={"n_ctx": 4096, "n_threads": None, "n_gpu_layers": 0, "verbose": False}), \
              patch.object(llm, "generate", return_value="answer"), \
              patch.object(self.app, "extract_text_from_pdf", return_value="document text"):
             first = self.app.process_upload(str(self.pdf), "question", str(self.model), 128, 0.2)
@@ -64,6 +65,7 @@ class AppBoundaryTests(unittest.TestCase):
             archive.writestr("notes.bin", b"binary")
         with patch.object(llm, "is_loaded", return_value=True), \
              patch.object(llm, "loaded_model_path", return_value=str(self.model.resolve())), \
+             patch.object(llm, "loaded_model_config", return_value={"n_ctx": 4096, "n_threads": None, "n_gpu_layers": 0, "verbose": False}), \
              patch.object(self.app, "extract_supported_files", return_value=[]), \
              patch.object(self.app, "cleanup_dir", wraps=self.app.cleanup_dir) as cleanup:
             answer, result_path = self.app.process_upload(str(archive_path), "question",
@@ -78,6 +80,7 @@ class AppBoundaryTests(unittest.TestCase):
             archive.writestr("folder/document.txt", "document text")
         with patch.object(llm, "is_loaded", return_value=True), \
              patch.object(llm, "loaded_model_path", return_value=str(self.model.resolve())), \
+             patch.object(llm, "loaded_model_config", return_value={"n_ctx": 4096, "n_threads": None, "n_gpu_layers": 0, "verbose": False}), \
              patch.object(llm, "generate", side_effect=RuntimeError("backend failed")), \
              patch.object(self.app, "cleanup_dir", wraps=self.app.cleanup_dir) as cleanup:
             answer, result_path = self.app.process_upload(str(archive_path), "question",

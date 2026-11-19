@@ -2,16 +2,29 @@
 import re
 from typing import List, Tuple
 
+DEFAULT_MAX_DOCUMENT_CHARS = 10_000_000
+DEFAULT_MAX_CHUNKS = 100_000
 
-def chunk_text(text: str, chunk_size: int = 800, overlap: int = 100) -> List[str]:
-    """Split text into bounded, overlapping chunks without zero-step loops."""
+
+def chunk_text(
+    text: str,
+    chunk_size: int = 800,
+    overlap: int = 100,
+    max_chars: int = DEFAULT_MAX_DOCUMENT_CHARS,
+    max_chunks: int = DEFAULT_MAX_CHUNKS,
+) -> List[str]:
+    """Split text into bounded, overlapping chunks within resource limits."""
     if not isinstance(text, str):
         raise TypeError("text must be a string")
-    if (not isinstance(chunk_size, int) or isinstance(chunk_size, bool) or
-            not isinstance(overlap, int) or isinstance(overlap, bool)):
-        raise TypeError("chunk_size and overlap must be integers")
+    if any(not isinstance(value, int) or isinstance(value, bool)
+           for value in (chunk_size, overlap, max_chars, max_chunks)):
+        raise TypeError("chunk_size, overlap, max_chars and max_chunks must be integers")
     if chunk_size < 1 or overlap < 0 or overlap >= chunk_size:
         raise ValueError("chunk_size must be positive and overlap must be in [0, chunk_size)")
+    if max_chars < 1 or max_chunks < 1:
+        raise ValueError("max_chars and max_chunks must be positive")
+    if len(text) > max_chars:
+        raise ValueError(f"Document exceeds the {max_chars}-character chunking limit")
     if not text.strip():
         return []
 
@@ -25,6 +38,8 @@ def chunk_text(text: str, chunk_size: int = 800, overlap: int = 100) -> List[str
                 end = boundary
         piece = text[start:end].strip()
         if piece:
+            if len(chunks) >= max_chunks:
+                raise ValueError(f"Document exceeds the {max_chunks}-chunk limit")
             chunks.append(piece)
         if end >= len(text):
             break
@@ -57,8 +72,13 @@ def simple_retrieve(query: str, chunks: List[str], top_k: int = 4) -> List[Tuple
     return [(chunk, score) for chunk, score, _ in scored[:top_k]]
 
 
-def build_context(query: str, document_text: str, max_context_chars: int = 3000) -> str:
-    """Build a context string bounded to max_context_chars."""
+def build_context(
+    query: str,
+    document_text: str,
+    max_context_chars: int = 3000,
+    max_document_chars: int = DEFAULT_MAX_DOCUMENT_CHARS,
+) -> str:
+    """Build a context string bounded by context and source-document budgets."""
     if not isinstance(query, str):
         raise TypeError("query must be a string")
     if not isinstance(document_text, str):
@@ -67,9 +87,13 @@ def build_context(query: str, document_text: str, max_context_chars: int = 3000)
         raise TypeError("max_context_chars must be an integer")
     if max_context_chars < 0:
         raise ValueError("max_context_chars cannot be negative")
+    if not isinstance(max_document_chars, int) or isinstance(max_document_chars, bool):
+        raise TypeError("max_document_chars must be an integer")
+    if max_document_chars < 1:
+        raise ValueError("max_document_chars must be positive")
     if max_context_chars == 0 or not document_text:
         return ""
-    chunks = chunk_text(document_text)
+    chunks = chunk_text(document_text, max_chars=max_document_chars)
     if not chunks:
         return ""
     selected = []

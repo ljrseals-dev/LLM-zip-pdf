@@ -78,7 +78,8 @@ class PdfAndRetrievalHardeningTests(unittest.TestCase):
     def test_pdf_page_limit_rejects_bool_and_float(self):
         for value in (True, 1.5, 0):
             with self.subTest(value=value):
-                with self.assertRaises(ValueError):
+                expected = TypeError if isinstance(value, bool) or isinstance(value, float) else ValueError
+                with self.assertRaises(expected):
                     pdf_utils.extract_text_from_pdf("unused.pdf", max_pages=value)
 
     def test_retrieval_rejects_invalid_query_and_chunk_collection(self):
@@ -86,6 +87,14 @@ class PdfAndRetrievalHardeningTests(unittest.TestCase):
             simple_retrieve(None, ["text"])
         with self.assertRaises(TypeError):
             build_context(None, "document")
+
+    def test_chunking_enforces_document_and_chunk_budgets(self):
+        with self.assertRaisesRegex(ValueError, "character chunking limit"):
+            chunk_text("x" * 20, max_chars=10)
+        with self.assertRaisesRegex(ValueError, "chunk limit"):
+            chunk_text("a b c", chunk_size=1, overlap=0, max_chunks=2)
+        with self.assertRaises(TypeError):
+            chunk_text("text", max_chunks=True)
 
     def test_zero_context_is_empty_and_chunks_are_bounded(self):
         self.assertEqual(build_context("x", "document", max_context_chars=0), "")

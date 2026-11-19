@@ -3,6 +3,7 @@ import os
 import shutil
 import stat
 import tempfile
+import unicodedata
 import zipfile
 from pathlib import Path, PurePosixPath
 from typing import Dict, List, Optional
@@ -22,21 +23,32 @@ def _positive_int(name: str, value: int) -> None:
         raise ValueError(f"{name} must be positive")
 
 
+def _portable_component(part: str) -> bool:
+    """Reject names that are unsafe or ambiguous on common filesystems."""
+    if (not part or part in (".", "..") or part.endswith((" ", ".")) or
+            any(ord(char) < 32 or char in '<>:"\\|?*' for char in part)):
+        return False
+    stem = part.split(".", 1)[0].rstrip(" .").upper()
+    reserved = {"CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"}
+    reserved.update(f"COM{index}" for index in range(1, 10))
+    reserved.update(f"LPT{index}" for index in range(1, 10))
+    return stem not in reserved
+
+
 def _safe_member_path(name: str) -> Optional[Path]:
-    """Return a safe relative path, or None for absolute/traversal names."""
+    """Return a safe portable relative path, or None for unsafe names."""
     if not isinstance(name, str) or not name or "\x00" in name:
         return None
-    normalized = name.replace("\\", "/")
+    normalized = unicodedata.normalize("NFC", name.replace("\\", "/"))
     raw_parts = normalized.split("/")
-    if normalized.startswith("/") or any(p in ("", ".", "..") for p in raw_parts):
+    if normalized.startswith("/") or any(not _portable_component(p) for p in raw_parts):
         return None
-    if raw_parts[0].endswith(":") or any(":" in part for part in raw_parts):
+    if any(":" in part for part in raw_parts):
         return None
     member = PurePosixPath(normalized)
     if member.is_absolute() or not member.parts:
         return None
     return Path(*member.parts)
-
 
 def _validate_regular_member(info: zipfile.ZipInfo) -> None:
     """Reject encrypted entries, symlinks, devices, sockets and malformed dirs."""
@@ -116,12 +128,21 @@ def extract_supported_files(
     destination = Path(tempfile.mkdtemp(prefix="llm_zip_")) if owns_destination else Path(dest_dir)
     created_files: List[Path] = []
     created_dirs: List[Path] = []
-    destination_created = not destination.exists()
     try:
         if destination.is_symlink():
             raise ValueError("ZIP destination must not be a symbolic link")
         if not destination.exists():
-            destination.mkdir(parents=True)
+            missing_destination = []
+            cursor = destination
+            while not cursor.exists():
+                missing_destination.append(cursor)
+                parent = cursor.parent
+                if parent == cursor:
+                    break
+                cursor = parent
+            for directory in reversed(missing_destination):
+                directory.mkdir()
+                created_dirs.append(directory)
         if not destination.is_dir():
             raise NotADirectoryError(f"ZIP destination is not a directory: {destination}")
         with zipfile.ZipFile(source, "r") as zf:
@@ -140,9 +161,10 @@ def extract_supported_files(
                     continue
                 if relative.suffix.lower() not in SUPPORTED_EXTENSIONS:
                     continue
-                if relative in seen:
-                    raise ValueError(f"Duplicate ZIP destination: {info.filename}")
-                seen.add(relative)
+                collision_key = relative.as_posix().casefold()
+                if collision_key in seen:
+                    raise ValueError(f"Duplicate or case-colliding ZIP destination: {info.filename}")
+                seen.add(collision_key)
                 if len(candidates) >= max_files:
                     raise ValueError(f"ZIP exceeds the {max_files}-file extraction limit")
                 if info.file_size < 0 or info.compress_size < 0:
@@ -202,16 +224,11 @@ def extract_supported_files(
                     path.rmdir()
                 except OSError:
                     pass
-            if destination_created:
-                try:
-                    destination.rmdir()
-                except OSError:
-                    pass
         raise
 
 
 def create_results_zip(files: Dict[str, str | bytes], output_path: str | Path) -> Path:
-    """Atomically create a ZIP with safe, unique flat filenames."""
+    """Atomically create a ZIP with safe, unique portable flat filenames."""
     if not isinstance(files, dict):
         raise TypeError("files must be a dictionary")
     output_path = Path(output_path)
@@ -222,14 +239,17 @@ def create_results_zip(files: Dict[str, str | bytes], output_path: str | Path) -
     for name, content in files.items():
         if not isinstance(name, str) or not name or "\x00" in name:
             raise ValueError(f"Invalid result filename: {name!r}")
-        safe_name = name.replace("\\", "/").rsplit("/", 1)[-1]
-        if safe_name in ("", ".", ".."):
-            raise ValueError(f"Invalid result filename: {name!r}")
-        if safe_name in seen:
-            raise ValueError(f"Duplicate result filename after flattening: {safe_name}")
+        safe_name = unicodedata.normalize(
+            "NFC", name.replace("\\", "/").rsplit("/", 1)[-1]
+        )
+        if not _portable_component(safe_name):
+            raise ValueError(f"Invalid or non-portable result filename: {name!r}")
+        collision_key = safe_name.casefold()
+        if collision_key in seen:
+            raise ValueError(f"Duplicate or case-colliding result filename: {safe_name}")
         if not isinstance(content, (str, bytes)):
             raise TypeError(f"Result content for {safe_name!r} must be str or bytes")
-        seen.add(safe_name)
+        seen.add(collision_key)
         normalized.append((safe_name, content))
     output_path.parent.mkdir(parents=True, exist_ok=True)
     fd, temp_name = tempfile.mkstemp(prefix=f".{output_path.name}.", suffix=".tmp",
@@ -249,7 +269,6 @@ def create_results_zip(files: Dict[str, str | bytes], output_path: str | Path) -
             pass
         raise
     return output_path
-
 
 def cleanup_dir(path: str | Path) -> None:
     """Remove a temporary directory tree without following a symlink."""

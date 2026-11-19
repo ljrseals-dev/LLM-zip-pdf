@@ -126,12 +126,12 @@ See `docs/termux.md` for detailed setup and performance tips.
 
 ## Security and resource limits
 
-ZIP extraction rejects path traversal, symbolic links and other non-regular entries, refuses encrypted members, preserves directory paths to avoid basename collisions, and enforces limits of 10,000 archive entries, 50 supported files, 25 MiB per file, 100 MiB total uncompressed data, and a 200:1 compression ratio. Extraction also refuses to write through symlinks already present in the destination directory. Extraction failures are reported rather than silently continuing. Uploaded documents are processed locally; treat document contents as untrusted input and review generated answers.
+ZIP extraction rejects path traversal, symbolic links and other non-regular entries, refuses encrypted members, preserves directory paths, skips names unsafe on common filesystems, detects case-insensitive filename collisions, and enforces limits of 10,000 archive entries, 50 supported files, 25 MiB per file, 100 MiB total uncompressed data, and a 200:1 compression ratio. Extraction also refuses to write through symlinks already present in the destination directory and rolls back partial extraction. PDF extraction is limited by default to 50 MiB per file, 500 pages, and 5 million extracted text characters. RAG chunking is bounded to 10 million document characters and 100,000 chunks. Uploaded document contents are untrusted data: embedded instructions are not to be followed as model instructions. Review generated answers.
 
 ## Limitations
 
-- Scanned/image-only PDFs need a separately implemented OCR pipeline; installing Tesseract alone does not enable OCR in this application.
-- Very large ZIPs or multi-GB PDFs may hit memory limits on mobile.
+- Scanned/image-only PDFs are not OCR-processed. Tesseract is not integrated into this application. Encrypted PDFs are rejected.
+- ZIP extraction is limited to 100 MiB total uncompressed content; larger archives are rejected. The PDF and RAG limits are configurable through their Python APIs.
 - No multi-modal vision models in the base package (text-focused).
 - Inference quality depends entirely on the chosen GGUF model.
 
