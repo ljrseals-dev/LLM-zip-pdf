@@ -4,8 +4,9 @@ import unittest
 import zipfile
 from pathlib import Path
 
+from src import llm
 from src.rag import build_context, chunk_text, simple_retrieve
-from src.zip_utils import extract_supported_files
+from src.zip_utils import extract_supported_files, list_zip_contents
 
 
 class ZipExtractionTests(unittest.TestCase):
@@ -56,6 +57,28 @@ class ZipExtractionTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             extract_supported_files(self.archive, max_file_bytes=50)
 
+    def test_rejects_preexisting_symlink_in_destination(self):
+        outside = self.root / "outside"
+        outside.mkdir()
+        destination = self.root / "out"
+        destination.mkdir()
+        try:
+            (destination / "linked").symlink_to(outside, target_is_directory=True)
+        except (OSError, NotImplementedError):
+            self.skipTest("symlinks unavailable on this platform")
+        with zipfile.ZipFile(self.archive, "w") as archive:
+            archive.writestr("linked/escape.txt", "must not escape")
+        with self.assertRaises(ValueError):
+            extract_supported_files(self.archive, destination)
+        self.assertFalse((outside / "escape.txt").exists())
+
+    def test_caps_archive_listing_metadata(self):
+        with zipfile.ZipFile(self.archive, "w") as archive:
+            archive.writestr("a.txt", "a")
+            archive.writestr("b.txt", "b")
+        with self.assertRaises(ValueError):
+            list_zip_contents(self.archive, max_entries=1)
+
 
 class RetrievalTests(unittest.TestCase):
     def test_long_paragraph_chunks_are_bounded_and_overlap_validated(self):
@@ -77,3 +100,26 @@ class RetrievalTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class InferenceValidationTests(unittest.TestCase):
+    def setUp(self):
+        self.previous_model = llm._llm
+        llm._llm = lambda *args, **kwargs: {"choices": [{"text": "ok"}]}
+
+    def tearDown(self):
+        llm._llm = self.previous_model
+
+    def test_rejects_nonfinite_temperature(self):
+        for value in (float("nan"), float("inf"), float("-inf")):
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):
+                    llm.generate("hello", temperature=value)
+
+    def test_rejects_noninteger_token_count(self):
+        with self.assertRaises(ValueError):
+            llm.generate("hello", max_tokens=1.5)
+
+    def test_rejects_invalid_stop_sequence(self):
+        with self.assertRaises(ValueError):
+            llm.generate("hello", stop="STOP")
