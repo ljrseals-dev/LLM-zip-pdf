@@ -198,7 +198,7 @@ class CliAndUiTests(unittest.TestCase):
                 zf.writestr("docs/notes.txt", "A useful note about testing.")
             with patch.object(app.llm, "is_loaded", return_value=True), \
                  patch.object(app.llm, "loaded_model_path", return_value=str(model.resolve())), \
-                 patch.object(app.llm, "loaded_model_config", return_value={"n_ctx": 4096, "n_threads": None, "n_gpu_layers": 0, "verbose": False}), \\
+                 patch.object(app.llm, "loaded_model_config", return_value={"n_ctx": 4096, "n_threads": None, "n_gpu_layers": 0, "verbose": False}), \
                  patch.object(app.llm, "generate", return_value="A concise answer."):
                 answer, output = app.process_upload(str(archive), "What matters?",
                                                     str(model), 128, 0.5)
