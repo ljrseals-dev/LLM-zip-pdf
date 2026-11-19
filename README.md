@@ -19,9 +19,16 @@ No cloud or API keys are required after model download. The application binds it
 | PDF handling | Extract text from text-based PDFs; scanned-image OCR is not implemented |
 | ZIP handling | Upload ZIP → list/extract supported PDF, TXT, MD, CSV, JSON, PY, and HTML files → re-package results as ZIP |
 | Local inference | Uses `llama-cpp-python` with local GGUF models |
+| Behavioral prompt profile | Includes the authored Shadowy Spooky Poltergeist system-prompt profile by default; callers may override it |
 | CLI + simple web UI | Command-line for scripting; Gradio UI for interactive use |
 | Offline after setup | Once models and deps are installed, runs fully offline |
-| Termux friendly | Minimal deps, small model recommendations, wake-lock notes |
+| Termux friendly | Minimal deps, small models recommended, wake-lock notes |
+
+## Model and prompt profile
+
+The repository `ljrseals-dev/shadowy-spooky-poltergeist` supplies a behavioral specification/system prompt, not trained weights or a runnable neural-network checkpoint. This project uses a carefully adapted profile from its behavioral directives at `prompts/shadowy-spooky-poltergeist.system.txt`.
+
+The profile is applied as the default system message by the local inference wrapper. A caller can provide an explicit `system=` value to `src.llm.generate()` to override it. The profile does not change model weights, architecture, context capacity, modalities, or actual capabilities. Those remain properties of the selected GGUF checkpoint and runtime. In particular, the large architecture figures in the source specification are not asserted as facts about the smaller checkpoint used in CI.
 
 ## Quick Start
 
@@ -37,7 +44,7 @@ No cloud or API keys are required after model download. The application binds it
 git clone https://github.com/ljrseals-dev/LLM-zip-pdf.git
 cd LLM-zip-pdf
 python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
+source .venv/bin/activate   # Windows: .venv\\Scripts\\activate
 pip install -r requirements.txt
 ```
 
@@ -94,6 +101,8 @@ LLM-zip-pdf/
 ├── README.md
 ├── requirements.txt
 ├── LICENSE
+├── prompts/
+│   └── shadowy-spooky-poltergeist.system.txt
 ├── src/
 │   ├── __init__.py
 │   ├── cli.py          # Command-line interface
@@ -135,6 +144,7 @@ ZIP extraction rejects path traversal, symbolic links and other non-regular entr
 - ZIP extraction is limited to 100 MiB total uncompressed content; larger archives are rejected. The PDF and RAG limits are configurable through their Python APIs.
 - No multi-modal vision models in the base package (text-focused).
 - Inference quality depends entirely on the chosen GGUF model.
+- CI's Qwen GGUF is a test fixture, not a replacement for a user's own model.
 
 ## License
 
