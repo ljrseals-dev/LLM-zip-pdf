@@ -11,6 +11,12 @@ import time
 import zipfile
 from pathlib import Path
 
+# Executing a file under scripts/ sets sys.path[0] to that directory.
+# Add the repository root so the src package is importable in CI and locally.
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+if str(REPOSITORY_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPOSITORY_ROOT))
+
 import requests
 from gradio_client import Client, handle_file
 
@@ -67,6 +73,7 @@ def main():
         env.setdefault("GRADIO_ANALYTICS_ENABLED", "False")
         process = subprocess.Popen(
             [sys.executable, "-m", "src.app"],
+            cwd=str(REPOSITORY_ROOT),
             stdout=log_handle,
             stderr=subprocess.STDOUT,
             env=env,
