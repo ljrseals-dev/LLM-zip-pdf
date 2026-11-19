@@ -30,6 +30,7 @@ class AppBoundaryTests(unittest.TestCase):
         class Upload:
             name = str(self.pdf)
         self.assertEqual(self.app._upload_path(str(self.pdf)), self.pdf)
+        self.assertEqual(self.app._upload_path(self.pdf), self.pdf)
         self.assertEqual(self.app._upload_path(Upload()), self.pdf)
 
     def test_missing_or_unsupported_upload_is_rejected_before_model_load(self):

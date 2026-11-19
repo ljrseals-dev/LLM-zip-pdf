@@ -1,4 +1,5 @@
 """Local Gradio UI for PDF / ZIP + local LLM."""
+import os
 import tempfile
 from pathlib import Path
 
@@ -9,8 +10,12 @@ from .zip_utils import cleanup_dir, create_results_zip, extract_supported_files,
 
 
 def _upload_path(file_obj) -> Path:
-    """Gradio versions return either a path string or a file-like wrapper."""
-    raw_path = getattr(file_obj, "name", None) or file_obj
+    """Accept Gradio path strings, pathlib paths, and named file wrappers."""
+    if isinstance(file_obj, (str, os.PathLike)):
+        return Path(file_obj)
+    raw_path = getattr(file_obj, "name", None)
+    if not isinstance(raw_path, (str, os.PathLike)):
+        raise TypeError("upload must be a path or a file wrapper with a path name")
     return Path(raw_path)
 
 
