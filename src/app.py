@@ -83,6 +83,8 @@ def process_upload(file_obj, question: str, model_path: str,
 
 
 def build_ui():
+    import gradio as gr
+
     with gr.Blocks(title="Standalone LLM – PDF & ZIP") as demo:
         gr.Markdown(
             "# Standalone Local LLM\nUpload a **PDF** or **ZIP** of documents, ask a question "
